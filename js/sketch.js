@@ -2,7 +2,7 @@ let spriteSheet;
 let backgroundSprite;
 
 let serialPDM;        
-let portName = 'COM7';
+let portName = 'COM5';
 let sensors;
 let xBorder = 1024;
 let yBorder = 720;
