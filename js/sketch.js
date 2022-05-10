@@ -1,26 +1,115 @@
 let spriteSheet;
 let backgroundSprite;
+
+let serialPDM;        
+let portName = 'COM7';
+let sensors;
 let xBorder = 1024;
 let yBorder = 720;
 let slimeArray = [];
+let backgroundsx = 0;
+
+
 const sounds = new Tone.Players({
   chomp: "Media/Cartoon_Chomp_Sound_Effect_(getmp3.pro)_01.mp3",
 }).toDestination();
 
+let synth = new Tone.FMSynth().toDestination();
+
+let synth2 = new Tone.DuoSynth().toDestination();
+
+var synthJSON = {"harmonicity":8,
+"modulationIndex": 2,
+"oscillator" : {
+    "type": "sine"
+},
+"envelope": {
+    "attack": 0.001,
+    "decay": 2,
+    "sustain": 0.1,
+    "release": 2
+},
+"modulation" : {
+    "type" : "square"
+},
+"modulationEnvelope" : {
+    "attack": 0.002,
+    "decay": 0.2,
+    "sustain": 0,
+    "release": 0.2
+}};
+
+var synth2JSON = {
+  "harmonicity":8,
+  "modulationIndex": 2,
+  "oscillator" : {
+      "type": "sine"
+  },
+  "envelope": {
+      "attack": 0.001,
+      "decay": 2,
+      "sustain": 0.1,
+      "release": 2
+  },
+  "modulation" : {
+      "type" : "square"
+  },
+  "modulationEnvelope" : {
+      "attack": 0.002,
+      "decay": 0.2,
+      "sustain": 0,
+      "release": 0.2
+  }
+};
+
+var effect1 = new Tone.Vibrato();
+var effect1JSON = {
+  "frequency": 2.3,
+  "depth": 0.4,
+  "type": "triangle",      
+  "wet": 0.5
+};
+
+let part = new Tone.Sequence((time, note) => {
+    
+  synth.triggerAttackRelease(note, "8n", time+.25);
+}, ["C4", "G4" , "E4", "G4", "B4", "A4", "C5"]);
 
 function preload()
 {
-  spriteSheet = loadImage("Media/d72dd39c-55a5-4032-9a6f-9bb66a8b09f3.png")
-  backgroundSprite = loadImage("Media/eaaec42b-ecdb-44bc-a7fb-e6e9bbe1f03d.png");
+  spriteSheet = loadImage("Media/d72dd39c-55a5-4032-9a6f-9bb66a8b09f3.png");
+  backgroundSprite = loadImage("Media/beegspriteSheet.png");
 }
 
 function setup() {
-  createCanvas(1024, 720);
+  serialPDM = new PDMSerial(portName);
+  sensors = serialPDM.sensorData;
+  createCanvas(xBorder, yBorder);
+
+  synth.set(synthJSON);
+  effect1.set(effect1JSON);
+  synth.connect(effect1);
+
+  synth2.set(synth2JSON);
+
+  
+  Tone.start();
+  Tone.Transport.bpm.value = 80;
+  part.start();
+  Tone.Transport.start();
+  
 }
 
 function draw() {
+  killAllButton();
   imageMode(CORNER);
-  image(backgroundSprite, 0, 0, 1024, 720, 0, 0, 512, 512);
+  image(backgroundSprite, 0, 0, xBorder, yBorder, backgroundsx * 512, 0, 512, 512);
+  if(frameCount % 12 == 0) {
+    backgroundsx++;
+    if(backgroundsx == 3) {
+      backgroundsx = 0;
+    }
+  }
   imageMode(CENTER);
   drawSlime();
   if(slimeArray.length > 1)
@@ -53,6 +142,7 @@ function slimeCollision() {
       }
     }
   }
+  sounds.player("chomp").start();
 }
 
 function MOTHEROFALLISHOLYDONOTPUSH() {
@@ -69,12 +159,20 @@ function createSlime(currentX, currentY)
 function mousePressed()
 {
   createSlime(mouseX, mouseY);
+  //play sound to spawn
+  synth2.triggerAttackRelease("C3", "16n");
+  serialPDM.transmit('spawnLED', 1);
+  serialPDM.transmit('spawnLED', 0);
+  
 }
-
+function killAllButton() {
+  if(sensors.p7 == 1) {
+    MOTHEROFALLISHOLYDONOTPUSH();
+  }
+}
 function keyPressed() {
   if(keyCode == LEFT_ARROW) {
     MOTHEROFALLISHOLYDONOTPUSH();
-    sounds.player("chomp").start();
   }
 }
 
@@ -110,7 +208,7 @@ class Slime
     imageMode(CENTER);
     translate(this.x, this.y);
     scale(this.facing, 1);
-    if(frameCount % 3 == 0) {
+    if(frameCount % 10 == 0) {
       image(spriteSheet, 0, 0, 200, 200, 0, this.slimeY * 72, 80, 72);
     }
     else{
@@ -129,10 +227,20 @@ class Slime
     if(this.y < 0 || this.y > 720)
       this.speedY *= -1;
 
-
+    let speedMultiplier = 1;
+    //console.log(sensors.a0);
+    if(sensors.float0 * 1023 < 341) {
+      speedMultiplier = .5;
+    }
+    else if(sensors.float0 * 1023 < 682) {
+      speedMultiplier = 1;
+    }
+    else if(sensors.float0 * 1023 < 1023) {
+      speedMultiplier = 2;
+    }
       
-    this.x += this.speedX;
-    this.y += this.speedY;
+    this.x += this.speedX * speedMultiplier;
+    this.y += this.speedY * speedMultiplier;
   }
 
   collide(otherSlime) 
